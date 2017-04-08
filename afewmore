@@ -1,6 +1,38 @@
 #! /bin/bash
 
 # main
+
+# get options
+OPTION_DIR="/data"
+OPTION_NUM="1"
+OPTION_VER=false
+OPTION_HEL=false
+
+PREV=""
+for ARG in $@
+do
+    if [[ $ARG == "-h" ]]; then
+        OPTION_HEL=true
+    elif [[ $ARG == "-v" ]]; then
+        OPTION_VER=true
+    else
+        if [[ $PREV == "-n" ]]; then
+            if [[ $(echo $ARG | egrep "^[0-9]+$") > 0 ]]; then
+                echo $ARG
+                OPTION_NUM=$ARG
+            else
+                echo "no value for option -n"
+            fi
+        elif [[ $PREV == "-d" ]]; then
+            OPTION_DIR=$ARG
+        elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
+            echo "unknown option: $ARG"
+        fi
+    fi
+
+    PREV=$ARG
+done
+
 # check aws cli
 if [ $(whereis aws | wc -m) -lt 6 ]; then
     echo "aws not installed, start installing now"
@@ -28,4 +60,8 @@ CONFIG_SEC=${CONFIG[3]}
 CONFIG_TYP=${CONFIG[4]}
 
 # start a same instance
-aws ec2 run-instances --image-id $CONFIG_AMI --security-group-ids $CONFIG_SEC --count 1 --instance-type $CONFIG_TYP --key-name $CONFIG_KEY --query 'Instances[0].InstanceId'
+NEW_ID=$(aws ec2 run-instances --image-id $CONFIG_AMI --security-group-ids $CONFIG_SEC --count 1 --instance-type $CONFIG_TYP --key-name $CONFIG_KEY --query 'Instances[0].InstanceId' | sed 's/[^"]*"\([^"]*\)".*/\1/')
+echo "new instance $NEW_ID created"
+
+# add local ip to inbound rule of security group
+ADD_RES=$(aws ec2 authorize-security-group-ingress --group-id $CONFIG_SEC --protocol tcp --port 22 --cidr "$IP/32" 2>&1)
