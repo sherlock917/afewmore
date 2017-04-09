@@ -2,12 +2,12 @@
 
 log() {
     if [[ $OPTION_VER == true ]]; then
-        echo $@
+        echo "INFO:" $@
     fi
 }
 
 exit_with_error() {
-    echo "ERROR:" $1
+    echo "ERROR:" $@
     exit 1
 }
 
@@ -29,20 +29,49 @@ init_aws() {
     fi
 }
 
-get_instance_info() {
-    TARGET_STRING=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{a:InstanceId, b:PrivateIpAddress, c:ImageId, d:InstanceType, e:SecurityGroups[0].GroupId, f:KeyName}' --output json)
-    TARGET_STRING=$(echo $TARGET_STRING | tr -d '[]{} ' | sed -E 's/"[a-z]{1}"://g')
-    IFS=',' read -ra $TARGET_CONFIG <<< "$TARGET_STRING"
-    $TARGET_ID=${TARGET_CONFIG[0]}
-    $TARGET_IP=${TARGET_CONFIG[1]}
-    $TARGET_AMI=${TARGET_CONFIG[2]}
-    $TARGET_TYPE=${TARGET_CONFIG[3]}
-    $TARGET_SG=${TARGET_CONFIG[4]}
-    $TARGET_KEY=${TARGET_CONFIG[5]}
+get_master_info() {
+    MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{a:InstanceId, b:PrivateIpAddress, c:ImageId, d:InstanceType, e:SecurityGroups[0].GroupId, f:KeyName}' --output json)
+    MASTER=$(echo $MASTER | tr -d '"[]{} ' | sed -E 's/[a-z]{1}://g')
+    IFS=',' read -ra MASTER_CONFIG <<< "$MASTER"
+    MASTER_ID=${MASTER_CONFIG[0]}
+    MASTER_AMI=${MASTER_CONFIG[1]}
+    MASTER_IP=${MASTER_CONFIG[2]}
+    MASTER_SG=${MASTER_CONFIG[3]}
+    MASTER_TYPE=${MASTER_CONFIG[4]}
+    MASTER_KEY=${MASTER_CONFIG[5]}
+
+    log "target instance id:" $MASTER_ID
+    log "target instance ami:" $MASTER_AMI
+    log "target instance private ip:" $MASTER_IP
+    log "target instance security group id:" $MASTER_SG
+    log "target instance image type:" $MASTER_TYPE
+    log "target instance key name:" $MASTER_KEY
+}
+
+launch_slaves() {
+    SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].{a: InstanceId, b: PrivateIpAddress}' --output json)
+    SLAVES=$(echo $SLAVES | tr -d '"[]{ ' | sed -E 's/[a-z]{1}://g' | sed -E 's/\},/ /g' | tr -d '}')
+
+
+    SLAVE_IDX=0
+    for SLAVE in $SLAVES
+    do
+        IFS=',' read -ra SLAVE_INFO <<< "$SLAVE"
+        SLAVE_IDS[$SLAVE_IDX]=${SLAVE_INFO[0]}
+        SLAVE_IPS[$SLAVE_IDX]=${SLAVE_INFO[1]}
+
+        if [[ $OPTION_VER == true ]]; then
+            log "new instance " ${SLAVE_IDS[$SLAVE_IDX]} "created"
+        else
+            echo ${SLAVE_IDS[$SLAVE_IDX]}
+        fi
+
+        ((SLAVE_IDX++))
+    done
 }
 
 # main
-init_aws
+# init_aws
 
 # initial check
 NUM_ARGS=$#
@@ -72,16 +101,16 @@ do
     elif [[ $ARG == "-v" ]]; then
         OPTION_VER=true
     elif [[ $PREV == "-d" ]]; then
-        if [[ $(echo $ARG | egrep "^~?(\/[^\/]+)+$" | wc -m) > 0 ]]; then
+        if [[ $(echo $ARG | egrep "^~?(\/[^\/]+)+$" | wc -m) -gt 0 ]]; then
             OPTION_DIR=$ARG
         else
-            exit_with_error "invalid directory"
+            exit_with_error "invalid directory \"$ARG\""
         fi
     elif [[ $PREV == "-n" ]]; then
-        if [[ $(echo $ARG | egrep "^[0-9]+$" | wc -m) > 0 ]]; then
+        if [[ $(echo $ARG | egrep "^[0-9]+$" | wc -m) -gt 0 ]]; then
             OPTION_NUM=$ARG
         else
-            exit_with_error "invalid number of instances"
+            exit_with_error "invalid number \"$ARG\""
         fi
     elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
         exit_with_error "unknown option \"$ARG\""
@@ -90,11 +119,5 @@ do
     PREV=$ARG
 done
 
-get_instance_info
-
-echo $TARGET_ID
-echo $TARGET_IP
-echo $TARGET_AMI
-echo $TARGET_TYPE
-echo $TARGET_SG
-echo $TARGET_KEY
+get_master_info
+launch_slaves
