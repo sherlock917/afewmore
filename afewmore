@@ -84,7 +84,7 @@ do
             exit_with_error "invalid number of instances"
         fi
     elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
-        echo "unknown option \"$ARG\""
+        exit_with_error "unknown option \"$ARG\""
     fi
 
     PREV=$ARG
