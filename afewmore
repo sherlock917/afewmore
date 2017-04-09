@@ -1,22 +1,61 @@
 #! /bin/bash
 
+log() {
+    if [[ $OPTION_VER == true ]]; then
+        echo $@
+    fi
+}
+
 exit_with_error() {
     echo "ERROR:" $1
     exit 1
 }
 
+init_aws() {
+    if [ $(whereis aws | wc -m) -lt 6 ]; then
+        log "aws not installed, start installing now"
+        sudo apt-get install awscli -y
+    fi
+
+    if [ $(aws --version 2>&1 | grep "unknown locale" | wc -m) -gt 0 ]; then
+        echo -e "export LC_ALL=en_US.UTF-8\nexport LANG=en_US.UTF-8" >> ~/.bash_profile && source ~/.bash_profile
+    fi
+
+    log "aws" $(aws --version 2>&1 | awk -F '[/ ]' '{ print $2 }') "installed"
+
+    if [[ $(cat ~/.aws 2>&1) != *"Is a directory"* ]]; then
+      log "aws not configured, start configuring now"
+      aws configure
+    fi
+}
+
+get_instance_info() {
+    TARGET_STRING=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{a:InstanceId, b:PrivateIpAddress, c:ImageId, d:InstanceType, e:SecurityGroups[0].GroupId, f:KeyName}' --output json)
+    TARGET_STRING=$(echo $TARGET_STRING | tr -d '[]{} ' | sed -E 's/"[a-z]{1}"://g')
+    IFS=',' read -ra $TARGET_CONFIG <<< "$TARGET_STRING"
+    $TARGET_ID=${TARGET_CONFIG[0]}
+    $TARGET_IP=${TARGET_CONFIG[1]}
+    $TARGET_AMI=${TARGET_CONFIG[2]}
+    $TARGET_TYPE=${TARGET_CONFIG[3]}
+    $TARGET_SG=${TARGET_CONFIG[4]}
+    $TARGET_KEY=${TARGET_CONFIG[5]}
+}
+
 # main
+init_aws
 
-# get options
-OPTION_DIR="/data"
-OPTION_NUM="10"
-OPTION_VER=false
-OPTION_HEL=false
-
+# initial check
 NUM_ARGS=$#
 if [[ $NUM_ARGS < 1 ]]; then
     exit_with_error "no instance specified"
 fi
+
+# get options
+OPTION_ID=${!NUM_ARGS}
+OPTION_DIR="/data"
+OPTION_NUM="10"
+OPTION_VER=false
+OPTION_HEL=false
 
 COUNT=$((NUM_ARGS-1))
 PREV=""
@@ -42,7 +81,7 @@ do
         if [[ $(echo $ARG | egrep "^[0-9]+$" | wc -m) > 0 ]]; then
             OPTION_NUM=$ARG
         else
-            exit_with_error "invalid number"
+            exit_with_error "invalid number of instances"
         fi
     elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
         echo "unknown option \"$ARG\""
@@ -50,3 +89,12 @@ do
 
     PREV=$ARG
 done
+
+get_instance_info
+
+echo $TARGET_ID
+echo $TARGET_IP
+echo $TARGET_AMI
+echo $TARGET_TYPE
+echo $TARGET_SG
+echo $TARGET_KEY
