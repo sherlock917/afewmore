@@ -1,67 +1,22 @@
 #! /bin/bash
 
-# main
-
-# get options
-OPTION_DIR="/data"
-OPTION_NUM="1"
-OPTION_VER=false
-OPTION_HEL=false
-
-PREV=""
-for ARG in $@
-do
-    if [[ $ARG == "-h" ]]; then
-        OPTION_HEL=true
-    elif [[ $ARG == "-v" ]]; then
-        OPTION_VER=true
-    else
-        if [[ $PREV == "-n" ]]; then
-            if [[ $(echo $ARG | egrep "^[0-9]+$") > 0 ]]; then
-                echo $ARG
-                OPTION_NUM=$ARG
-            else
-                echo "no value for option -n"
-            fi
-        elif [[ $PREV == "-d" ]]; then
-            OPTION_DIR=$ARG
-        elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
-            echo "unknown option: $ARG"
-        fi
-    fi
-
-    PREV=$ARG
-done
-
-# check aws cli
-if [ $(whereis aws | wc -m) -lt 6 ]; then
-    echo "aws not installed, start installing now"
-    sudo apt-get install awscli -y
-fi
-
-if [ $(aws --version 2>&1 | grep "unknown locale" | wc -m) -gt 0 ]; then
-    echo -e "export LC_ALL=en_US.UTF-8\nexport LANG=en_US.UTF-8" >> ~/.bash_profile && source ~/.bash_profile
-fi
-
-echo "aws" $(aws --version | awk -F '[/ ]' '{ print $2 }') "installed"
-
-if [[ $(cat ~/.aws 2>&1) != *"Is a directory"* ]]; then
-  echo "aws not configured, start configuring now"
-  aws configure
-fi
-
-# get instance info
-IP=$(ifconfig | awk '/inet addr:/ { print substr($2, 6) }' | grep "^172")
-CONFIG_STRING=$(aws ec2 describe-instances --query 'Reservations[*].Instances[*].{ip_private:PrivateIpAddress, ami: ImageId, type:InstanceType, security_groups: SecurityGroups[0].GroupId, key:KeyName}' --output table | grep $IP | awk -F '|' '{ print $2 $3 $4 $5 $6 }')
-IFS=' ' read -ra CONFIG <<< "$CONFIG_STRING"
-CONFIG_AMI=${CONFIG[0]}
-CONFIG_KEY=${CONFIG[2]}
-CONFIG_SEC=${CONFIG[3]}
-CONFIG_TYP=${CONFIG[4]}
-
-# start a same instance
-NEW_ID=$(aws ec2 run-instances --image-id $CONFIG_AMI --security-group-ids $CONFIG_SEC --count 1 --instance-type $CONFIG_TYP --key-name $CONFIG_KEY --query 'Instances[0].InstanceId' | sed 's/[^"]*"\([^"]*\)".*/\1/')
-echo "new instance $NEW_ID created"
-
 # add local ip to inbound rule of security group
 ADD_RES=$(aws ec2 authorize-security-group-ingress --group-id $CONFIG_SEC --protocol tcp --port 22 --cidr "$IP/32" 2>&1)
+
+init_aws() {
+    if [ $(whereis aws | wc -m) -lt 6 ]; then
+        log "aws not installed, start installing now"
+        sudo apt-get install awscli -y
+    fi
+
+    if [ $(aws --version 2>&1 | grep "unknown locale" | wc -m) -gt 0 ]; then
+        echo -e "export LC_ALL=en_US.UTF-8\nexport LANG=en_US.UTF-8" >> ~/.bash_profile && source ~/.bash_profile
+    fi
+
+    log "aws" $(aws --version 2>&1 | awk -F '[/ ]' '{ print $2 }') "installed"
+
+    if [[ $(cat ~/.aws 2>&1) != *"Is a directory"* ]]; then
+      log "aws not configured, start configuring now"
+      aws configure
+    fi
+}

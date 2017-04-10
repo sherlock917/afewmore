@@ -11,24 +11,6 @@ exit_with_error() {
     exit 1
 }
 
-init_aws() {
-    if [ $(whereis aws | wc -m) -lt 6 ]; then
-        log "aws not installed, start installing now"
-        sudo apt-get install awscli -y
-    fi
-
-    if [ $(aws --version 2>&1 | grep "unknown locale" | wc -m) -gt 0 ]; then
-        echo -e "export LC_ALL=en_US.UTF-8\nexport LANG=en_US.UTF-8" >> ~/.bash_profile && source ~/.bash_profile
-    fi
-
-    log "aws" $(aws --version 2>&1 | awk -F '[/ ]' '{ print $2 }') "installed"
-
-    if [[ $(cat ~/.aws 2>&1) != *"Is a directory"* ]]; then
-      log "aws not configured, start configuring now"
-      aws configure
-    fi
-}
-
 get_master_info() {
     MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{a:InstanceId, b:PrivateIpAddress, c:ImageId, d:InstanceType, e:SecurityGroups[0].GroupId, f:KeyName}' --output json)
     MASTER=$(echo $MASTER | tr -d '"[]{} ' | sed -E 's/[a-z]{1}://g')
@@ -71,7 +53,6 @@ launch_slaves() {
 }
 
 # main
-# init_aws
 
 # initial check
 NUM_ARGS=$#
