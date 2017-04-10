@@ -12,18 +12,32 @@ exit_with_error() {
 }
 
 get_master_info() {
-    MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{a:InstanceId, b:PrivateIpAddress, c:ImageId, d:InstanceType, e:SecurityGroups[0].GroupId, f:KeyName}' --output json)
-    MASTER=$(echo $MASTER | tr -d '"[]{} ' | sed -E 's/[a-z]{1}://g')
-    IFS=',' read -ra MASTER_CONFIG <<< "$MASTER"
-    MASTER_ID=${MASTER_CONFIG[0]}
-    MASTER_AMI=${MASTER_CONFIG[1]}
-    MASTER_IP=${MASTER_CONFIG[2]}
-    MASTER_SG=${MASTER_CONFIG[3]}
-    MASTER_TYPE=${MASTER_CONFIG[4]}
-    MASTER_KEY=${MASTER_CONFIG[5]}
+    MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{iid:InstanceId, ip:PrivateIpAddress, dns:PublicDnsName, ami:ImageId, itype:InstanceType, sg:SecurityGroups[0].GroupId, key:KeyName}' --output json)
+    MASTER=$(echo $MASTER | tr -d '"[]{} ')
+    MASTER=${MASTER//,/$'\n'}
+
+    for MASTER_CONFIG in $MASTER
+    do
+        if [[ $MASTER_CONFIG == iid:* ]]; then
+            MASTER_ID=$(echo $MASTER_CONFIG | sed 's/iid://g')
+        elif [[ $MASTER_CONFIG == ami:* ]]; then
+            MASTER_AMI=$(echo $MASTER_CONFIG | sed 's/ami://g')
+        elif [[ $MASTER_CONFIG == dns:* ]]; then
+            MASTER_DNS=$(echo $MASTER_CONFIG | sed 's/dns://g')
+        elif [[ $MASTER_CONFIG == ip:* ]]; then
+            MASTER_IP=$(echo $MASTER_CONFIG | sed 's/ip://g')
+        elif [[ $MASTER_CONFIG == sg:* ]]; then
+            MASTER_SG=$(echo $MASTER_CONFIG | sed 's/sg://g')
+        elif [[ $MASTER_CONFIG == itype:* ]]; then
+            MASTER_TYPE=$(echo $MASTER_CONFIG | sed 's/itype://g')
+        elif [[ $MASTER_CONFIG == key:* ]]; then
+            MASTER_KEY=$(echo $MASTER_CONFIG | sed 's/key://g')
+        fi
+    done
 
     log "target instance id:" $MASTER_ID
     log "target instance ami:" $MASTER_AMI
+    log "target instance dns:" $MASTER_DNS
     log "target instance private ip:" $MASTER_IP
     log "target instance security group id:" $MASTER_SG
     log "target instance image type:" $MASTER_TYPE
