@@ -60,6 +60,10 @@ if [[ $NUM_ARGS < 1 ]]; then
     exit_with_error "no instance specified"
 fi
 
+if [[ $(echo ${!NUM_ARGS} | egrep "^i-[0-9a-z]+$" | wc -m) -lt 1 ]]; then
+    exit_with_error "invalid instance id \"${!NUM_ARGS}\""
+fi
+
 # get options
 OPTION_ID=${!NUM_ARGS}
 OPTION_DIR="/data"
@@ -77,30 +81,32 @@ do
         ((COUNT--))
     fi
 
-    if [[ $ARG == "-h" ]]; then
-        OPTION_HELP=true
-    elif [[ $ARG == "-v" ]]; then
-        OPTION_VERB=true
-    elif [[ $PREV == "-d" ]]; then
-        if [[ $(echo $ARG | egrep "^~?(\/[^\/]+)+$" | wc -m) -gt 0 ]]; then
-            OPTION_DIR=$ARG
-        else
-            exit_with_error "invalid directory \"$ARG\""
+    if [[ $(echo $ARG | egrep "^-" | wc -m) -gt 0 ]]; then
+        if [[ $ARG == "-h" ]]; then
+            OPTION_HELP=true
+        elif [[ $ARG == "-v" ]]; then
+            OPTION_VERB=true
         fi
-    elif [[ $PREV == "-n" ]]; then
-        if [[ $(echo $ARG | egrep "^[0-9]+$" | wc -m) -gt 0 ]]; then
-            OPTION_NUM=$ARG
-        else
-            exit_with_error "invalid number \"$ARG\""
+    else
+        if [[ $PREV == "-d" ]]; then
+            if [[ $(echo $ARG | egrep "^~?(\/[^\/]+)+$" | wc -m) -gt 0 ]]; then
+                OPTION_DIR=$ARG
+            else
+                exit_with_error "invalid directory \"$ARG\""
+            fi
+        elif [[ $PREV == "-n" ]]; then
+            if [[ $(echo $ARG | egrep "^[0-9]+$" | wc -m) -gt 0 ]]; then
+                OPTION_NUM=$ARG
+            else
+                exit_with_error "invalid number \"$ARG\""
+            fi
         fi
-    elif [[ $ARG != "-n" && $ARG != "-d" ]]; then
-        exit_with_error "unknown option \"$ARG\""
     fi
 
     PREV=$ARG
 done
 
-if [[ $OPTION_HELP ]]; then
+if [[ $OPTION_HELP == true ]]; then
     curl -s https://www.cs.stevens.edu/~jschauma/615/afewmore.1.txt | more
     exit 0
 fi
