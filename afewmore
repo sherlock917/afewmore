@@ -45,16 +45,13 @@ get_master_info() {
 }
 
 launch_slaves() {
-    SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].{a: InstanceId, b: PrivateIpAddress}' --output json)
-    SLAVES=$(echo $SLAVES | tr -d '"[]{ ' | sed -E 's/[a-z]{1}://g' | sed -E 's/\},/ /g' | tr -d '}')
-
+    SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
+    SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
     SLAVE_IDX=0
     for SLAVE in $SLAVES
     do
-        IFS=',' read -ra SLAVE_INFO <<< "$SLAVE"
-        SLAVE_IDS[$SLAVE_IDX]=${SLAVE_INFO[0]}
-        SLAVE_IPS[$SLAVE_IDX]=${SLAVE_INFO[1]}
+        SLAVE_IDS[$SLAVE_IDX]=$SLAVE
 
         if [[ $OPTION_VERB == true ]]; then
             log "new instance " ${SLAVE_IDS[$SLAVE_IDX]} "created"
@@ -63,6 +60,23 @@ launch_slaves() {
         fi
 
         ((SLAVE_IDX++))
+    done
+}
+
+get_slaves_dns() {
+    DNSS=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName')
+    DNSS=$(echo $DNSS | tr -d '[]",')
+
+    SLAVE_DNS_IDX=0
+    for DNS in $DNSS
+    do
+        SLAVE_DNS[$SLAVE_DNS_IDX]=$DNS
+
+        if [[ $OPTION_VERB == true ]]; then
+            log "obtained target dns " ${SLAVE_DNS[$SLAVE_DNS_IDX]}
+        fi
+
+        ((SLAVE_DNS_IDX++))
     done
 }
 
@@ -127,3 +141,4 @@ fi
 
 get_master_info
 launch_slaves
+get_slaves_dns
