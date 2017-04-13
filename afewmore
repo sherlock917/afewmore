@@ -48,7 +48,7 @@ launch_slaves() {
     SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
     SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
-    # SLAVES=""
+    # SLAVES="i-0fc437c36502ea14b i-0166ccf8d28f88719 i-09fe9cef405e2cd51 i-0c0dc474eeca26f71"
 
     SLAVE_IDX=0
     for SLAVE in $SLAVES
@@ -96,8 +96,6 @@ ping_slaves() {
 }
 
 parse_dir() {
-    echo $OPTION_DIR
-
     OPTION_DIR=$(echo $OPTION_DIR | sed -E 's/\/$//g')
     OPTION_DIR_PARENT=$(echo "$OPTION_DIR/" | sed -E 's/\/[^\/]+\/$//g')
 
@@ -111,7 +109,16 @@ parse_dir() {
 }
 
 mkdir_on_slaves() {
-    echo "mkdir"
+    for DNS in $DNSES
+    do
+        MKDIR_STATUS=$(ssh -o "StrictHostKeyChecking no" "ubuntu@$DNS" "sudo mkdir -p $OPTION_DIR_PARENT" 2>&1 | wc -m)
+        
+        if [[ $MKDIR_STATUS > 0 ]]; then
+            log "failed to create directory \"$OPTION_DIR_PARENT\" on target $DNS"
+        else
+            log "created directory \"$OPTION_DIR_PARENT\" on target $DNS"
+        fi
+    done
 }
 
 # main
@@ -173,8 +180,8 @@ if [[ $OPTION_HELP == true ]]; then
     exit 0
 fi
 
-# get_master_info
-# launch_slaves
-# get_slaves_dns
-# ping_slaves
+get_master_info
+launch_slaves
+get_slaves_dns
+ping_slaves
 parse_dir
