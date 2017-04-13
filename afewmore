@@ -2,12 +2,12 @@
 
 log() {
     if [[ $OPTION_VERB == true ]]; then
-        echo "[INFO]" $@
+        echo -e "[\033[32mINFO\033[0m]" $@
     fi
 }
 
 exit_with_error() {
-    echo "[ERROR]" $@ >&2
+    echo -e "[\033[31mERROR\033[0m]" $@ >&2
     exit 1
 }
 
