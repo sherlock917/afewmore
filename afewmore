@@ -2,12 +2,12 @@
 
 log() {
     if [[ $OPTION_VERB == true ]]; then
-        echo "INFO:" $@
+        echo "[INFO]" $@
     fi
 }
 
 exit_with_error() {
-    echo "ERROR:" $@ >&2
+    echo "[ERROR]" $@ >&2
     exit 1
 }
 
@@ -48,6 +48,8 @@ launch_slaves() {
     SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
     SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
+    # SLAVES=""
+
     SLAVE_IDX=0
     for SLAVE in $SLAVES
     do
@@ -64,19 +66,32 @@ launch_slaves() {
 }
 
 get_slaves_dns() {
-    DNSS=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName')
-    DNSS=$(echo $DNSS | tr -d '[]",')
+    DNSES=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName')
+    DNSES=$(echo $DNSES | tr -d '[]",')
 
     SLAVE_DNS_IDX=0
-    for DNS in $DNSS
+    for DNS in $DNSES
     do
-        SLAVE_DNS[$SLAVE_DNS_IDX]=$DNS
+        SLAVE_DNSES[$SLAVE_DNS_IDX]=$DNS
 
         if [[ $OPTION_VERB == true ]]; then
-            log "obtained target dns " ${SLAVE_DNS[$SLAVE_DNS_IDX]}
+            log "obtained target dns " ${SLAVE_DNSES[$SLAVE_DNS_IDX]}
         fi
 
         ((SLAVE_DNS_IDX++))
+    done
+}
+
+ping_slaves() {
+    for DNS in $DNSES
+    do
+        SLAVE_STATUS=1
+        while [[ $SLAVE_STATUS > 0 ]]; do
+            log "pinging " $DNS
+            SLAVE_STATUS=$(nc -z $DNS 22 2>&1 | echo $?)
+        done
+
+        log $DNS " is online"
     done
 }
 
@@ -142,3 +157,4 @@ fi
 get_master_info
 launch_slaves
 get_slaves_dns
+ping_slaves
