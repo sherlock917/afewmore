@@ -67,8 +67,6 @@ launch_slaves() {
     SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
     SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
-    # SLAVES="i-0fc437c36502ea14b i-0166ccf8d28f88719 i-09fe9cef405e2cd51 i-0c0dc474eeca26f71"
-
     SLAVE_IDX=0
     for SLAVE in $SLAVES
     do
@@ -81,13 +79,6 @@ launch_slaves() {
         fi
 
         ((SLAVE_IDX++))
-    done
-}
-
-authenticate_slaves() {
-    for SLAVE in $SLAVES
-    do
-        addtoknow_hosts $SLAVE
     done
 }
 
@@ -152,12 +143,6 @@ performcopy() {
     log "copied data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
 }
 
-addtoknow_hosts() {
-    myhostname=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'`
-    key=`ssh-keyscan -t rsa -H ${myhostname} 2> /dev/null`
-    echo ${key} >> ~/.ssh/known_hosts
-}
-
 # main
 
 # initial check
@@ -215,7 +200,6 @@ done
 
 get_master_info
 launch_slaves
-# authenticate_slaves
 get_slaves_dns
 ping_slaves
 copy_data

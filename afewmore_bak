@@ -20,3 +20,17 @@ init_aws() {
       aws configure
     fi
 }
+
+
+authenticate_slaves() {
+    for SLAVE in $SLAVES
+    do
+        addtoknow_hosts $SLAVE
+    done
+}
+
+addtoknow_hosts() {
+    myhostname=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'`
+    key=`ssh-keyscan -t rsa -H ${myhostname} 2> /dev/null`
+    echo ${key} >> ~/.ssh/known_hosts
+}
