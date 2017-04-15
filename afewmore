@@ -17,7 +17,12 @@ print_man() {
 }
 
 get_master_info() {
-    MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{iid:InstanceId, ip:PrivateIpAddress, dns:PublicDnsName, ami:ImageId, itype:InstanceType, sg:SecurityGroups[0].GroupId, key:KeyName}' --output json)
+    MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{iid:InstanceId, ip:PrivateIpAddress, dns:PublicDnsName, ami:ImageId, itype:InstanceType, sg:SecurityGroups[0].GroupId, key:KeyName}' --output json 2>&1)
+
+    if [[ $(echo $MASTER | grep "InvalidInstanceID" | wc -m) -gt 0 ]]; then
+        exit_with_error "invalid instance id \"$OPTION_ID\""
+    fi
+
     MASTER=$(echo $MASTER | tr -d '"[]{} ')
     MASTER=${MASTER//,/$'\n'}
 
