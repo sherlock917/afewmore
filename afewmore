@@ -117,18 +117,20 @@ ping_slaves() {
 }
 
 copy_data() {
+    log "start copying data"
+
     for DNS in $DNSES
     do
         performcopy $MASTER_UNAME $MASTER_DNS $DNS
     done
+
+    log "finish copying data"
 }
 
 performcopy() {
     user=$1
     sourcePublicDnsname=$2
     spawnPublicDnsname=$3
-
-    log "start copying data to ${sourcePublicDnsname}"
 
     #make a new directory
     `ssh ${user}@${spawnPublicDnsname} sudo mkdir -p ${OPTION_DIR}`
@@ -142,7 +144,7 @@ performcopy() {
 
     #run scp command, the directory want to copy should be for exmaple /home/ubuntu/data/* to  /home/ubuntu/data/
     `scp -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}`
-    log "finished copying data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
+    log "copied data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
 }
 
 addtoknow_hosts() {
