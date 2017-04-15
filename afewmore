@@ -47,6 +47,8 @@ get_master_info() {
 
     MASTER_UNAME=$(getuserhelper ${MASTER_DNS})
 
+    check_master_directory
+
     log "target instance id:" $MASTER_ID
     log "target instance ami:" $MASTER_AMI
     log "target instance dns:" $MASTER_DNS
@@ -57,7 +59,7 @@ get_master_info() {
     log "target instance uname:" $MASTER_UNAME
 }
 
-getuserhelper(){
+getuserhelper() {
     mes=`ssh -q -o StrictHostKeyChecking=no root@$1 uname` 
     wordnum=$(echo $mes | awk '{print NF}')
     if [ $wordnum -gt "1" ]
@@ -65,6 +67,12 @@ getuserhelper(){
         echo $mes | sed 's/[^"]*"\([^"]*\)".*/\1/'
     else 
         echo "root"
+    fi
+}
+
+check_master_directory() {
+    if [[ $(ssh ${MASTER_UNAME}@${MASTER_DNS} "[ -d ${OPTION_DIR} ] && echo 0 || echo 1") == 1 ]]; then
+        exit_with_error "directory \"${OPTION_DIR}\" does not exist on instance \"${OPTION_ID}\""
     fi
 }
 
