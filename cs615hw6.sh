@@ -29,7 +29,9 @@ spawnhelper()
 	KeyName=`aws ec2 describe-instances --instance-ids ${instanceId} --query 'Reservations[0].Instances[0].KeyName' | sed -e 's/^"//' -e 's/"$//'`
 	PublicDnsname=`aws ec2 describe-instances --instance-ids ${instanceId} --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'` 
 	nums=$spawnnum
+
 	user="$(getuserhelper ${PublicDnsname})"
+
 	echo "user is ${user}"
 	while [ $nums -gt "0" ] 
 	do
@@ -93,13 +95,8 @@ addtoknow_hosts()
 {
 
 	myhostname=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'`
-	myipaddress=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicIpAddress' | sed -e 's/^"//' -e 's/"$//'`
-	`ssh-keygen -R [${myhostname}]`
-	`ssh-keygen -R [${myipaddress}]`
-	`ssh-keygen -R [${myhostname}],[${myipaddress}]`
-	`ssh-keyscan -H [${myhostname}],[${myipaddress}] >> ~/.ssh/known_hosts`
-	`ssh-keyscan -H [${myipaddress}] >> ~/.ssh/known_hosts`
-	`ssh-keyscan -H [${myhostname}] >> ~/.ssh/known_hosts`
+    key=`ssh-keyscan -t rsa -H ${myhostname} 2> /dev/null`
+    echo ${key} >> ~/.ssh/known_hosts
 }
 
 echo "afewmore command started!"
