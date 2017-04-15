@@ -142,7 +142,7 @@ performcopy() {
 
     #run scp command, the directory want to copy should be for exmaple /home/ubuntu/data/* to  /home/ubuntu/data/
     `scp -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}`
-    log "copied data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
+    log "finished copying data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
 }
 
 addtoknow_hosts() {
