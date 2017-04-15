@@ -53,7 +53,7 @@ get_master_info() {
 }
 
 getuserhelper(){
-    mes=`ssh -o "StrictHostKeyChecking no" root@$1 uname` 
+    mes=`ssh -q -o StrictHostKeyChecking=no root@$1 uname` 
     wordnum=$(echo $mes | awk '{print NF}')
     if [ $wordnum -gt "1" ]
     then
@@ -138,17 +138,17 @@ performcopy() {
     spawnPublicDnsname=$3
 
     #make a new directory
-    `ssh ${user}@${spawnPublicDnsname} sudo mkdir -p ${OPTION_DIR}`
+    `ssh -q -o StrictHostKeyChecking=no ${user}@${spawnPublicDnsname} sudo mkdir -p ${OPTION_DIR}`
     log "created directory \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
 
     #change the owner, use sudo to mkdir, owner is root, change it to ubuntu
-    `ssh ${user}@${spawnPublicDnsname} sudo chown -R ${user} ${OPTION_DIR}`
+    `ssh -q -o StrictHostKeyChecking=no ${user}@${spawnPublicDnsname} sudo chown -R ${user} ${OPTION_DIR}`
 
     #give the priority
-    `ssh ${user}@${spawnPublicDnsname} sudo chmod -R 700 ${OPTION_DIR}`
+    `ssh -q -o StrictHostKeyChecking=no ${user}@${spawnPublicDnsname} sudo chmod -R 700 ${OPTION_DIR}`
 
     #run scp command, the directory want to copy should be for exmaple /home/ubuntu/data/* to  /home/ubuntu/data/
-    `scp -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}`
+    `scp -q -o StrictHostKeyChecking=no -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}`
     log "copied data to \"${OPTION_DIR}\" on ${sourcePublicDnsname}"
 }
 
@@ -215,7 +215,7 @@ done
 
 get_master_info
 launch_slaves
-authenticate_slaves
+# authenticate_slaves
 get_slaves_dns
 ping_slaves
 copy_data
