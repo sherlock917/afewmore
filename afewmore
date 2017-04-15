@@ -35,6 +35,8 @@ get_master_info() {
         fi
     done
 
+    MASTER_UNAME=$(getuserhelper ${MASTER_DNS})
+
     log "target instance id:" $MASTER_ID
     log "target instance ami:" $MASTER_AMI
     log "target instance dns:" $MASTER_DNS
@@ -42,6 +44,18 @@ get_master_info() {
     log "target instance security group id:" $MASTER_SG
     log "target instance image type:" $MASTER_TYPE
     log "target instance key name:" $MASTER_KEY
+    log "target instance uname:" $MASTER_UNAME
+}
+
+getuserhelper(){
+    mes=`ssh -o "StrictHostKeyChecking no" root@$1 uname` 
+    wordnum=$(echo $mes | awk '{print NF}')
+    if [ $wordnum -gt "1" ]
+    then
+        echo $mes | sed 's/[^"]*"\([^"]*\)".*/\1/'
+    else 
+        echo "root"
+    fi
 }
 
 launch_slaves() {
@@ -62,6 +76,13 @@ launch_slaves() {
         fi
 
         ((SLAVE_IDX++))
+    done
+}
+
+authenticate_slaves() {
+    for SLAVE in $SLAVES
+    do
+        addtoknow_hosts $SLAVE
     done
 }
 
@@ -95,30 +116,38 @@ ping_slaves() {
     done
 }
 
-parse_dir() {
-    OPTION_DIR=$(echo $OPTION_DIR | sed -E 's/\/$//g')
-    OPTION_DIR_PARENT=$(echo "$OPTION_DIR/" | sed -E 's/\/[^\/]+\/$//g')
-
-    if [[ ${#OPTION_DIR_PARENT} == 0 ]]; then
-        OPTION_DIR_PARENT="/"
-    fi
-
-    if [[ $OPTION_DIR_PARENT != "/" ]]; then
-        mkdir_on_slaves
-    fi
-}
-
-mkdir_on_slaves() {
+copy_data() {
     for DNS in $DNSES
     do
-        MKDIR_STATUS=$(ssh -o "StrictHostKeyChecking no" "ubuntu@$DNS" "sudo mkdir -p $OPTION_DIR_PARENT" 2>&1 | wc -m)
-        
-        if [[ $MKDIR_STATUS > 0 ]]; then
-            log "failed to create directory \"$OPTION_DIR_PARENT\" on target $DNS"
-        else
-            log "created directory \"$OPTION_DIR_PARENT\" on target $DNS"
-        fi
+        performcopy $MASTER_UNAME $MASTER_DNS $DNS
     done
+}
+
+performcopy() {
+    echo $OPTION_DIR
+
+    user=$1
+    sourcePublicDnsname=$2
+    spawnPublicDnsname=$3
+    #make a new directory
+    echo "ssh ${user}@${spawnPublicDnsname} sudo mkdir -p ${OPTION_DIR}"
+    `ssh ${user}@${spawnPublicDnsname} sudo mkdir -p ${OPTION_DIR}`
+    #change the owner, use sudo to mkdir, owner is root, change it to ubuntu
+    echo "ssh ${user}@${spawnPublicDnsname} sudo chown -R ${user} ${OPTION_DIR}"
+    `ssh ${user}@${spawnPublicDnsname} sudo chown -R ${user} ${OPTION_DIR}`
+    #give the priority
+    echo "ssh ${user}@${spawnPublicDnsname} sudo chmod -R 700 ${OPTION_DIR}"
+    `ssh ${user}@${spawnPublicDnsname} sudo chmod -R 700 ${OPTION_DIR}`
+    #run scp command, the directory want to copy should be for exmaple /home/ubuntu/data/* to  /home/ubuntu/data/
+    echo "scp -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}"
+    `scp -3 ${user}@${sourcePublicDnsname}:${OPTION_DIR}/* ${user}@${spawnPublicDnsname}:${OPTION_DIR}`
+}
+
+addtoknow_hosts() {
+
+    myhostname=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'`
+    myipaddress=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicIpAddress' | sed -e 's/^"//' -e 's/"$//'`
+    `ssh-keyscan -H [${myhostname}],[${myipaddress}] >> ~/.ssh/known_hosts`
 }
 
 # main
@@ -182,6 +211,7 @@ fi
 
 get_master_info
 launch_slaves
+authenticate_slaves
 get_slaves_dns
 ping_slaves
-parse_dir
+copy_data
