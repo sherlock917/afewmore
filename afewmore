@@ -11,6 +11,11 @@ exit_with_error() {
     exit 1
 }
 
+print_man() {
+    curl -s https://www.cs.stevens.edu/~jschauma/615/afewmore.1.txt | more
+    exit 0
+}
+
 get_master_info() {
     MASTER=$(aws ec2 describe-instances --instance-ids $OPTION_ID --query 'Reservations[*].Instances[*].{iid:InstanceId, ip:PrivateIpAddress, dns:PublicDnsName, ami:ImageId, itype:InstanceType, sg:SecurityGroups[0].GroupId, key:KeyName}' --output json)
     MASTER=$(echo $MASTER | tr -d '"[]{} ')
@@ -148,10 +153,9 @@ performcopy() {
 }
 
 addtoknow_hosts() {
-
     myhostname=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicDnsName' | sed -e 's/^"//' -e 's/"$//'`
-    myipaddress=`aws ec2 describe-instances --instance-ids $1 --query 'Reservations[0].Instances[0].PublicIpAddress' | sed -e 's/^"//' -e 's/"$//'`
-    `ssh-keyscan -H [${myhostname}],[${myipaddress}] >> ~/.ssh/known_hosts`
+    key=`ssh-keyscan -t rsa -H ${myhostname} 2> /dev/null`
+    echo ${key} >> ~/.ssh/known_hosts
 }
 
 # main
@@ -159,7 +163,11 @@ addtoknow_hosts() {
 # initial check
 NUM_ARGS=$#
 if [[ $NUM_ARGS < 1 ]]; then
-    exit_with_error "no instance specified"
+    exit_with_error "no instance or option specified"
+fi
+
+if [[ $(echo $@ | egrep "(^| )-h($| )") ]]; then
+    print_man
 fi
 
 if [[ $(echo ${!NUM_ARGS} | egrep "^i-[0-9a-z]+$" | wc -m) -lt 1 ]]; then
@@ -171,7 +179,6 @@ OPTION_ID=${!NUM_ARGS}
 OPTION_DIR="/data"
 OPTION_NUM="10"
 OPTION_VERB=false
-OPTION_HELP=false
 
 COUNT=$((NUM_ARGS-1))
 PREV=""
@@ -184,9 +191,7 @@ do
     fi
 
     if [[ $(echo $ARG | egrep "^-" | wc -m) -gt 0 ]]; then
-        if [[ $ARG == "-h" ]]; then
-            OPTION_HELP=true
-        elif [[ $ARG == "-v" ]]; then
+        if [[ $ARG == "-v" ]]; then
             OPTION_VERB=true
         fi
     else
@@ -207,11 +212,6 @@ do
 
     PREV=$ARG
 done
-
-if [[ $OPTION_HELP == true ]]; then
-    curl -s https://www.cs.stevens.edu/~jschauma/615/afewmore.1.txt | more
-    exit 0
-fi
 
 get_master_info
 launch_slaves
