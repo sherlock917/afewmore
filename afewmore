@@ -77,7 +77,12 @@ getuserhelper() {
 }
 
 launch_slaves() {
-    SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
+    SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId' --output json 2>&1)
+    
+    if [[ $(echo $SLAVES | grep "InstanceLimitExceeded" | wc -m) -gt 0 ]]; then
+        exit_with_error "instance limit exceeded, failed to create new instance"
+    fi
+
     SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
     for SLAVE in $SLAVES
@@ -91,7 +96,7 @@ launch_slaves() {
 }
 
 get_slaves_dns() {
-    DNSES=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName')
+    DNSES=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName' --output json)
     DNSES=$(echo $DNSES | tr -d '[]",')
 
     for DNS in $DNSES
