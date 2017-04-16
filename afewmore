@@ -47,6 +47,8 @@ get_master_info() {
 
     MASTER_UNAME=$(getuserhelper ${MASTER_DNS})
 
+    check_master_directory
+
     log "target instance id:" $MASTER_ID
     log "target instance ami:" $MASTER_AMI
     log "target instance dns:" $MASTER_DNS
@@ -57,7 +59,13 @@ get_master_info() {
     log "target instance uname:" $MASTER_UNAME
 }
 
-getuserhelper(){
+check_master_directory() {
+    if [[ $(ssh ${MASTER_UNAME}@${MASTER_DNS} "[ -d ${OPTION_DIR} ] && echo 0 || echo 1") == 1 ]]; then
+        exit_with_error "directory \"${OPTION_DIR}\" does not exist on instance ${OPTION_ID}"
+    fi
+}
+
+getuserhelper() {
     mes=`ssh -q -o StrictHostKeyChecking=no root@$1 uname` 
     wordnum=$(echo $mes | awk '{print NF}')
     if [ $wordnum -gt "1" ]
@@ -72,18 +80,13 @@ launch_slaves() {
     SLAVES=$(aws ec2 run-instances --image-id $MASTER_AMI --security-group-ids $MASTER_SG --count $OPTION_NUM --instance-type $MASTER_TYPE --key-name $MASTER_KEY --query 'Instances[*].InstanceId')
     SLAVES=$(echo $SLAVES | tr -d '"[] ' | sed -E 's/,/ /g')
 
-    SLAVE_IDX=0
     for SLAVE in $SLAVES
     do
-        SLAVE_IDS[$SLAVE_IDX]=$SLAVE
-
         if [[ $OPTION_VERB == true ]]; then
-            log "new instance " ${SLAVE_IDS[$SLAVE_IDX]} "created"
+            log "new instance $SLAVE created"
         else
-            echo ${SLAVE_IDS[$SLAVE_IDX]}
+            echo ${SLAVE}
         fi
-
-        ((SLAVE_IDX++))
     done
 }
 
@@ -91,47 +94,23 @@ get_slaves_dns() {
     DNSES=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].PublicDnsName')
     DNSES=$(echo $DNSES | tr -d '[]",')
 
-    SLAVE_DNS_IDX=0
     for DNS in $DNSES
     do
-        SLAVE_DNSES[$SLAVE_DNS_IDX]=$DNS
-
-        if [[ $OPTION_VERB == true ]]; then
-            log "obtained target dns " ${SLAVE_DNSES[$SLAVE_DNS_IDX]}
-        fi
-
-        ((SLAVE_DNS_IDX++))
+        log "obtained instance dns $DNS"
     done
 }
 
-get_slaves_id() {
-    IDS=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].InstanceId')
-    IDS=$(echo $IDS | tr -d '[]",')
-
-    SLAVE_ID_IDX=0
-    for ID in $IDS
-    do
-        SLAVE_IDS[$SLAVE_ID_IDX]=$ID
-
-        if [[ $OPTION_VERB == true ]]; then
-            log "obtained target ids " ${SLAVE_IDS[$SLAVE_ID_IDX]}
-        fi
-
-        ((SLAVE_ID_IDX++))
-    done    
-}
-
 check_slaves() {
-    for ID in $IDS
+    for ID in $SLAVES
     do
+        log "waiting for " $ID
+
         SLAVE_STATUS=`aws ec2 describe-instance-status --instance-ids ${ID} --query 'InstanceStatuses[0].InstanceStatus.Status' | sed -e 's/^"//' -e 's/"$//'`
-        while [[ ${SLAVE_STATUS} != "cd ok" ]]; do
-            log "checking " $ID
+        while [[ ${SLAVE_STATUS} != "ok" ]]; do
             SLAVE_STATUS=`aws ec2 describe-instance-status --instance-ids ${ID} --query 'InstanceStatuses[0].InstanceStatus.Status' | sed -e 's/^"//' -e 's/"$//'`
         done 
 
         log $ID " is online"
-        
     done 
 }
 
@@ -224,6 +203,5 @@ done
 get_master_info
 launch_slaves
 get_slaves_dns
-get_slaves_id
 check_slaves
 copy_data

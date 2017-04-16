@@ -34,3 +34,20 @@ addtoknow_hosts() {
     key=`ssh-keyscan -t rsa -H ${myhostname} 2> /dev/null`
     echo ${key} >> ~/.ssh/known_hosts
 }
+
+get_slaves_id() {
+    IDS=$(aws ec2 describe-instances --instance-ids $SLAVES --query 'Reservations[*].Instances[*].InstanceId')
+    IDS=$(echo $IDS | tr -d '[]",')
+
+    SLAVE_ID_IDX=0
+    for ID in $IDS
+    do
+        SLAVE_IDS[$SLAVE_ID_IDX]=$ID
+
+        if [[ $OPTION_VERB == true ]]; then
+            log "obtained target ids " ${SLAVE_IDS[$SLAVE_ID_IDX]}
+        fi
+
+        ((SLAVE_ID_IDX++))
+    done    
+}
